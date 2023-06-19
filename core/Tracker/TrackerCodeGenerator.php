@@ -17,6 +17,8 @@ use Piwik\Plugins\SitesManager\API as APISitesManager;
 use Piwik\SettingsPiwik;
 use Piwik\View;
 
+require_once 'Tlds.php';
+
 /**
  * Generates the Javascript code to be inserted on every page of the website to track.
  */
@@ -259,6 +261,34 @@ class TrackerCodeGenerator
         // only since 3.7.0 we use the default matomo.js|php... for all other installs we need to keep BC
         return DbHelper::wasMatomoInstalledBeforeVersion('3.7.0-b1');
     }
+    public static function getDomainName($host) {
+        $hostParts = explode('.', $host);
+        $rootDomain = implode('.', $hostParts);
+        
+        if (count($hostParts) > 2 && $hostParts[0] === 'www') {
+            array_shift($hostParts);
+            $rootDomain = implode('.', $hostParts);
+        
+        // in case the url have 2 top-level domains, example hello.foobar.co.jp,
+        // we take the first non-valid top-level domain from right to define the Domain Name.
+        // foobar.co.jp in the example.
+        } else if(count($hostParts) > 2) {
+            $validTlds = top_level_domains();
+            $rootDomainParts = [];
+            
+            foreach(array_reverse($hostParts) as $key => $value) {           
+                if(array_key_exists($value, $validTlds)) {
+                    array_unshift($rootDomainParts, $value);
+                } else {
+                    array_unshift($rootDomainParts, $value);
+                    break;
+                }
+            }
+            $rootDomain = implode('.', $rootDomainParts);
+        }
+        
+        return $rootDomain;
+    }
 
     private function getJavascriptTagOptions($idSite, $mergeSubdomains, $mergeAliasUrls)
     {
@@ -296,7 +326,7 @@ class TrackerCodeGenerator
         }
         $options = '';
         if ($mergeSubdomains && !empty($firstHost)) {
-            $options .= '  _paq.push(["setCookieDomain", "*.' . $firstHost . '"]);' . "\n";
+            $options .= '  _paq.push(["setCookieDomain", "*.' . $this->getDomainName($firstHost) . '"]);' . "\n";
         }
         if ($mergeAliasUrls && !empty($websiteHosts)) {
             $urls = '["*.' . implode('","*.', $websiteHosts) . '"]';
